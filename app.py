@@ -3,9 +3,9 @@ import pandas as pd
 import chardet
 
 st.set_page_config(page_title="Marketing Spend Estimator", layout="centered")
-st.title("📊 Marketing Spend Estimator")
+st.title("📊 Keyword Planner Spend Estimator")
 
-uploaded_file = st.file_uploader("Upload your Google Ads keyword file (TSV)", type=["csv", "tsv"])
+uploaded_file = st.file_uploader("Upload your Google Keyword Planner TSV file", type=["csv", "tsv"])
 
 if uploaded_file:
     # Detect encoding
@@ -15,30 +15,25 @@ if uploaded_file:
     uploaded_file.seek(0)
 
     try:
-        # Google Ads keyword planner files are often TSVs (tab-delimited)
+        # Keyword Planner exports are tab-delimited
         df = pd.read_csv(uploaded_file, skiprows=2, sep="\t", encoding=encoding, encoding_errors="ignore")
     except Exception as e:
-        st.error(f"❌ Failed to read CSV/TSV: {e}")
+        st.error(f"❌ Failed to read file: {e}")
         st.stop()
 
     # Normalize column names
     df.columns = [col.strip().replace('\ufeff', '').lower() for col in df.columns]
 
-    # Rename columns
-    if 'search term' in df.columns:
-        df.rename(columns={'search term': 'keyword'}, inplace=True)
-    if 'avg. cpc' in df.columns:
-        df.rename(columns={'avg. cpc': 'avg_cpc'}, inplace=True)
-
-    # Check for required columns
+    # Rename and map
+    if 'top of page bid (low range)' in df.columns:
+        df.rename(columns={'top of page bid (low range)': 'avg_cpc'}, inplace=True)
     if 'keyword' not in df.columns or 'avg_cpc' not in df.columns:
-        st.error("❌ Your file must include a 'Search term' and 'Avg. CPC' column (tab-separated format).")
+        st.error("❌ This file must include 'keyword' and 'top of page bid (low range)' columns.")
         st.write("Detected columns:", list(df.columns))
         st.stop()
 
-    st.success("✅ File loaded successfully!")
+    st.success("✅ Keyword Planner file loaded successfully!")
 
-    # User Inputs
     st.subheader("🔧 Set Your Assumptions")
     budget = st.number_input("Total budget ($)", min_value=0.0, value=500.0, step=10.0)
     conv_rate = st.number_input("Conversion rate (%)", min_value=0.1, value=2.0, step=0.1) / 100
@@ -47,7 +42,7 @@ if uploaded_file:
     try:
         df = df[['keyword', 'avg_cpc']].dropna()
         df['avg_cpc'] = pd.to_numeric(df['avg_cpc'], errors='coerce')
-        df.dropna(subset=['avg_cpc'], inplace=True)
+        df = df.dropna(subset=['avg_cpc'])
 
         df['Clicks (est.)'] = budget / df['avg_cpc']
         df['Conversions (est.)'] = df['Clicks (est.)'] * conv_rate
@@ -66,7 +61,7 @@ if uploaded_file:
         st.markdown("---")
         st.subheader("🧠 Formulas Used")
         st.markdown("""
-        - **Clicks** = Budget ÷ Avg. CPC  
+        - **Clicks** = Budget ÷ Avg CPC  
         - **Conversions** = Clicks × Conversion Rate  
         - **CPA** = Budget ÷ Conversions  
         - **Revenue** = Conversions × Product Price  
@@ -74,7 +69,6 @@ if uploaded_file:
         """)
     except Exception as e:
         st.error(f"⚠️ Error during calculations: {e}")
-
 else:
-    st.info("📄 Upload your exported Google Ads keyword file to begin.")
+    st.info("📄 Upload your Google Keyword Planner export to begin.")
 
