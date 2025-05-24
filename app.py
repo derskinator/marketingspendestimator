@@ -5,40 +5,40 @@ import chardet
 st.set_page_config(page_title="Marketing Spend Estimator", layout="centered")
 st.title("📊 Marketing Spend Estimator")
 
-uploaded_file = st.file_uploader("Upload your Google Ads keyword CSV", type=["csv"])
+uploaded_file = st.file_uploader("Upload your Google Ads keyword file (TSV)", type=["csv", "tsv"])
 
 if uploaded_file:
-    # Read raw bytes and detect encoding
+    # Detect encoding
     raw_data = uploaded_file.read()
     detected = chardet.detect(raw_data)
     encoding = detected['encoding'] or 'utf-8'
-
     uploaded_file.seek(0)
 
     try:
-        # Skip metadata rows, load CSV
-        df = pd.read_csv(uploaded_file, skiprows=2, encoding=encoding, encoding_errors="ignore")
+        # Google Ads keyword planner files are often TSVs (tab-delimited)
+        df = pd.read_csv(uploaded_file, skiprows=2, sep="\t", encoding=encoding, encoding_errors="ignore")
     except Exception as e:
-        st.error(f"❌ Failed to read CSV: {e}")
+        st.error(f"❌ Failed to read CSV/TSV: {e}")
         st.stop()
 
-    # 🧼 Normalize column names
+    # Normalize column names
     df.columns = [col.strip().replace('\ufeff', '').lower() for col in df.columns]
 
-    # 🪄 Rename 'search term' → 'keyword'
+    # Rename columns
     if 'search term' in df.columns:
         df.rename(columns={'search term': 'keyword'}, inplace=True)
     if 'avg. cpc' in df.columns:
         df.rename(columns={'avg. cpc': 'avg_cpc'}, inplace=True)
 
-    # ❌ Check if required columns exist
+    # Check for required columns
     if 'keyword' not in df.columns or 'avg_cpc' not in df.columns:
-        st.error("❌ Your file must include a 'Search term' and 'Avg. CPC' column (case insensitive).")
+        st.error("❌ Your file must include a 'Search term' and 'Avg. CPC' column (tab-separated format).")
         st.write("Detected columns:", list(df.columns))
         st.stop()
 
     st.success("✅ File loaded successfully!")
 
+    # User Inputs
     st.subheader("🔧 Set Your Assumptions")
     budget = st.number_input("Total budget ($)", min_value=0.0, value=500.0, step=10.0)
     conv_rate = st.number_input("Conversion rate (%)", min_value=0.1, value=2.0, step=0.1) / 100
@@ -74,5 +74,7 @@ if uploaded_file:
         """)
     except Exception as e:
         st.error(f"⚠️ Error during calculations: {e}")
+
 else:
-    st.info("📄 Upload your exported Google Ads keyword CSV to begin.")
+    st.info("📄 Upload your exported Google Ads keyword file to begin.")
+
