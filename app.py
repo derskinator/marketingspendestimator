@@ -6,29 +6,47 @@ st.title("📊 Marketing Spend Estimator")
 
 uploaded_file = st.file_uploader("Upload your Google Ads keyword CSV", type=["csv"])
 
+def find_header_row(file, required_columns):
+    """Search for the row that contains all required columns."""
+    file.seek(0)
+    for i, line in enumerate(file):
+        decoded = line.decode("utf-8", errors="ignore")
+        if all(col in decoded for col in required_columns):
+            return i
+    return None
+
 if uploaded_file:
-    try:
-        # Skip metadata rows and load the real data
-        df = pd.read_csv(uploaded_file, skiprows=2, encoding="utf-8", encoding_errors="ignore")
-    except Exception as e:
-        st.error("❌ Could not read CSV. Ensure it's a valid Google Ads keyword export.")
+    required_columns = ['Keyword', 'Avg. CPC']
+    header_row = find_header_row(uploaded_file, required_columns)
+
+    if header_row is None:
+        st.error(f"❌ Could not find a header row with: {', '.join(required_columns)}")
         st.stop()
 
-    # Validate required columns
-    required_cols = ['Keyword', 'Avg. CPC']
-    if not all(col in df.columns for col in required_cols):
-        st.error(f"❌ Your CSV must include the following columns: {', '.join(required_cols)}")
+    uploaded_file.seek(0)  # Reset file read position
+
+    try:
+        df = pd.read_csv(uploaded_file, skiprows=header_row)
+    except Exception as e:
+        st.error(f"❌ Failed to load CSV: {e}")
+        st.stop()
+
+    if not set(required_columns).issubset(df.columns):
+        st.error(f"❌ Your CSV must include: {', '.join(required_columns)}")
     else:
-        st.success("✅ CSV uploaded successfully!")
+        st.success("✅ CSV loaded successfully!")
 
         # Inputs
         st.subheader("🔧 Set Your Assumptions")
         budget = st.number_input("Total budget ($)", min_value=0.0, value=500.0, step=10.0)
-        conv_rate = st.number_input("Assumed conversion rate (%)", min_value=0.1, max_value=100.0, value=2.0, step=0.1) / 100
-        product_price = st.number_input("Product price (optional)", min_value=0.0, value=0.0, step=1.0)
+        conv_rate = st.number_input("Conversion rate (%)", min_value=0.1, value=2.0, step=0.1) / 100
+        product_price = st.number_input("Product price (optional)", min_value=0.0, value=0.0)
 
-        # Calculations
         try:
+            df = df[['Keyword', 'Avg. CPC']].dropna()
+            df['Avg. CPC'] = pd.to_numeric(df['Avg. CPC'], errors='coerce')
+            df = df.dropna(subset=['Avg. CPC'])
+
             df['Clicks (est.)'] = budget / df['Avg. CPC']
             df['Conversions (est.)'] = df['Clicks (est.)'] * conv_rate
             df['Est. CPA'] = budget / df['Conversions (est.)']
@@ -40,21 +58,20 @@ if uploaded_file:
                 df['Est. Revenue'] = None
                 df['Est. ROAS'] = None
 
-            st.subheader("📈 Results")
+            st.subheader("📈 Estimated Results")
             st.dataframe(df[['Keyword', 'Avg. CPC', 'Clicks (est.)', 'Conversions (est.)', 'Est. CPA', 'Est. Revenue', 'Est. ROAS']])
 
             st.markdown("---")
-            st.subheader("🧠 Calculation Summary")
+            st.subheader("🧠 Formulas Used")
             st.markdown("""
             - **Clicks** = Budget ÷ Avg. CPC  
             - **Conversions** = Clicks × Conversion Rate  
             - **CPA** = Budget ÷ Conversions  
-            - **Revenue** = Conversions × Product Price (optional)  
-            - **ROAS** = Revenue ÷ Budget (optional)
+            - **Revenue** = Conversions × Product Price  
+            - **ROAS** = Revenue ÷ Budget
             """)
 
-        except Exception:
-            st.error("⚠️ Error during calculation. Check that 'Avg. CPC' values are numeric.")
+        except Exception as e:
+            st.error(f"⚠️ Error during calculations: {e}")
 else:
-    st.info("📄 Upload a Google Ads keyword CSV to begin.")
-
+    st.info("📄 Upload your exported Google Ads keyword CSV to begin.")
