@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import chardet
 
 st.set_page_config(page_title="Marketing Spend Estimator", layout="centered")
 st.title("📊 Marketing Spend Estimator")
@@ -7,9 +8,15 @@ st.title("📊 Marketing Spend Estimator")
 uploaded_file = st.file_uploader("Upload your Google Ads keyword CSV", type=["csv"])
 
 if uploaded_file:
+    # Detect encoding
+    raw_bytes = uploaded_file.read()
+    result = chardet.detect(raw_bytes)
+    encoding = result['encoding']
+    uploaded_file.seek(0)  # reset after reading
+
     try:
-        # Google Ads export: header is always row 3, so we skip first 2 rows
-        df = pd.read_csv(uploaded_file, skiprows=2)
+        # Skip first 2 rows like before
+        df = pd.read_csv(uploaded_file, skiprows=2, encoding=encoding)
     except Exception as e:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
@@ -18,7 +25,6 @@ if uploaded_file:
     if 'Search term' in df.columns:
         df.rename(columns={'Search term': 'Keyword'}, inplace=True)
 
-    # Check for required columns
     if 'Keyword' not in df.columns or 'Avg. CPC' not in df.columns:
         st.error("❌ Your file must include 'Search term' and 'Avg. CPC' columns.")
         st.stop()
@@ -63,4 +69,3 @@ if uploaded_file:
 
 else:
     st.info("📄 Upload your exported Google Ads keyword CSV to begin.")
-
