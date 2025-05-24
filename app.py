@@ -8,25 +8,33 @@ st.title("📊 Marketing Spend Estimator")
 uploaded_file = st.file_uploader("Upload your Google Ads keyword CSV", type=["csv"])
 
 if uploaded_file:
-    # Detect encoding
-    raw_bytes = uploaded_file.read()
-    result = chardet.detect(raw_bytes)
-    encoding = result['encoding']
-    uploaded_file.seek(0)  # reset after reading
+    # Read raw bytes and detect encoding
+    raw_data = uploaded_file.read()
+    detected = chardet.detect(raw_data)
+    encoding = detected['encoding'] or 'utf-8'
+
+    uploaded_file.seek(0)
 
     try:
-        # Skip first 2 rows like before
-        df = pd.read_csv(uploaded_file, skiprows=2, encoding=encoding)
+        # Skip metadata rows, load CSV
+        df = pd.read_csv(uploaded_file, skiprows=2, encoding=encoding, encoding_errors="ignore")
     except Exception as e:
         st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
 
-    # Rename 'Search term' to 'Keyword'
-    if 'Search term' in df.columns:
-        df.rename(columns={'Search term': 'Keyword'}, inplace=True)
+    # 🧼 Normalize column names
+    df.columns = [col.strip().replace('\ufeff', '').lower() for col in df.columns]
 
-    if 'Keyword' not in df.columns or 'Avg. CPC' not in df.columns:
-        st.error("❌ Your file must include 'Search term' and 'Avg. CPC' columns.")
+    # 🪄 Rename 'search term' → 'keyword'
+    if 'search term' in df.columns:
+        df.rename(columns={'search term': 'keyword'}, inplace=True)
+    if 'avg. cpc' in df.columns:
+        df.rename(columns={'avg. cpc': 'avg_cpc'}, inplace=True)
+
+    # ❌ Check if required columns exist
+    if 'keyword' not in df.columns or 'avg_cpc' not in df.columns:
+        st.error("❌ Your file must include a 'Search term' and 'Avg. CPC' column (case insensitive).")
+        st.write("Detected columns:", list(df.columns))
         st.stop()
 
     st.success("✅ File loaded successfully!")
@@ -37,11 +45,11 @@ if uploaded_file:
     product_price = st.number_input("Product price (optional)", min_value=0.0, value=0.0)
 
     try:
-        df = df[['Keyword', 'Avg. CPC']].dropna()
-        df['Avg. CPC'] = pd.to_numeric(df['Avg. CPC'], errors='coerce')
-        df.dropna(subset=['Avg. CPC'], inplace=True)
+        df = df[['keyword', 'avg_cpc']].dropna()
+        df['avg_cpc'] = pd.to_numeric(df['avg_cpc'], errors='coerce')
+        df.dropna(subset=['avg_cpc'], inplace=True)
 
-        df['Clicks (est.)'] = budget / df['Avg. CPC']
+        df['Clicks (est.)'] = budget / df['avg_cpc']
         df['Conversions (est.)'] = df['Clicks (est.)'] * conv_rate
         df['Est. CPA'] = budget / df['Conversions (est.)']
 
@@ -53,7 +61,7 @@ if uploaded_file:
             df['Est. ROAS'] = None
 
         st.subheader("📈 Estimated Results")
-        st.dataframe(df[['Keyword', 'Avg. CPC', 'Clicks (est.)', 'Conversions (est.)', 'Est. CPA', 'Est. Revenue', 'Est. ROAS']])
+        st.dataframe(df[['keyword', 'avg_cpc', 'Clicks (est.)', 'Conversions (est.)', 'Est. CPA', 'Est. Revenue', 'Est. ROAS']])
 
         st.markdown("---")
         st.subheader("🧠 Formulas Used")
@@ -66,6 +74,5 @@ if uploaded_file:
         """)
     except Exception as e:
         st.error(f"⚠️ Error during calculations: {e}")
-
 else:
     st.info("📄 Upload your exported Google Ads keyword CSV to begin.")
