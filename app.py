@@ -6,37 +6,43 @@ st.title("📊 Marketing Spend Estimator")
 
 uploaded_file = st.file_uploader("Upload your Google Ads keyword CSV", type=["csv"])
 
+# Adjusted for your exact export format
 def find_header_row(file, required_columns):
-    """Search for the row that contains all required columns."""
+    """Search for the row that contains required columns (or their known aliases)."""
     file.seek(0)
     for i, line in enumerate(file):
-        decoded = line.decode("utf-8", errors="ignore")
-        if all(col in decoded for col in required_columns):
+        decoded = line.decode("utf-8", errors="ignore").lower()
+        if all(any(alt in decoded for alt in [col.lower(), 'search term'] if col == 'Keyword') if col == 'Keyword' else col.lower() in decoded for col in required_columns):
             return i
     return None
 
 if uploaded_file:
-    required_columns = ['Keyword', 'Avg. CPC']
+    required_columns = ['Keyword', 'Avg. CPC']  # we'll remap Search term → Keyword
+
     header_row = find_header_row(uploaded_file, required_columns)
 
     if header_row is None:
-        st.error(f"❌ Could not find a header row with: {', '.join(required_columns)}")
+        st.error("❌ Could not find a header row with required columns (e.g., 'Search term', 'Avg. CPC').")
         st.stop()
 
-    uploaded_file.seek(0)  # Reset file read position
+    uploaded_file.seek(0)
 
     try:
         df = pd.read_csv(uploaded_file, skiprows=header_row)
     except Exception as e:
-        st.error(f"❌ Failed to load CSV: {e}")
+        st.error(f"❌ Failed to read CSV: {e}")
         st.stop()
 
-    if not set(required_columns).issubset(df.columns):
-        st.error(f"❌ Your CSV must include: {', '.join(required_columns)}")
-    else:
-        st.success("✅ CSV loaded successfully!")
+    # Rename 'Search term' to 'Keyword' if present
+    if 'Search term' in df.columns:
+        df.rename(columns={'Search term': 'Keyword'}, inplace=True)
 
-        # Inputs
+    if not {'Keyword', 'Avg. CPC'}.issubset(df.columns):
+        st.error("❌ Your file must include 'Search term' or 'Keyword' and 'Avg. CPC'.")
+        st.stop()
+    else:
+        st.success("✅ File loaded and formatted!")
+
         st.subheader("🔧 Set Your Assumptions")
         budget = st.number_input("Total budget ($)", min_value=0.0, value=500.0, step=10.0)
         conv_rate = st.number_input("Conversion rate (%)", min_value=0.1, value=2.0, step=0.1) / 100
