@@ -46,41 +46,38 @@ if uploaded_file:
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
     selected_multi = st.sidebar.multiselect("Compare multiple months", MONTH_LABELS, default=["May", "Nov", "Dec"])
 
-    # Rename columns
+    # Rename and clean
     df.rename(columns={
         'top of page bid (low range)': 'low_cpc',
         'top of page bid (high range)': 'high_cpc',
         'competition (indexed value)': 'competition_index'
     }, inplace=True)
 
-    # Drop and clean
-    df = df[['keyword', 'low_cpc', 'high_cpc', 'competition_index'] + list(monthly_map.values())].dropna()
+    all_month_cols = list(monthly_map.values())
+    df = df[['keyword', 'low_cpc', 'high_cpc', 'competition_index'] + all_month_cols].dropna()
     df['low_cpc'] = pd.to_numeric(df['low_cpc'], errors='coerce')
     df['high_cpc'] = pd.to_numeric(df['high_cpc'], errors='coerce')
     df['competition_index'] = pd.to_numeric(df['competition_index'], errors='coerce')
-    for col in monthly_map.values():
+    for col in all_month_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df.dropna(inplace=True)
 
     df['competition_score'] = df['competition_index'] / 100
     df['base_weighted_cpc'] = df['low_cpc'] * (1 - df['competition_score']) + df['high_cpc'] * df['competition_score']
 
-    # Normalize monthly search volume per keyword
-    df['peak_volume'] = df[list(monthly_map.values())].max(axis=1)
-    for month in MONTHS:
-        col = monthly_map[month]
-        df[f'norm_{month}'] = df[col] / df['peak_volume']
+    # GLOBAL normalized volume across all keywords
+    monthly_totals = df[all_month_cols].sum()
+    monthly_totals['searches: nov'] *= 1.2  # boost holidays
+    monthly_totals['searches: dec'] *= 1.2
+    global_peak = monthly_totals.max()
+    monthly_scalars = {month: monthly_totals[monthly_map[month]] / global_peak for month in MONTHS}
 
-    # Boost November and December demand artificially
-    for m in ['nov', 'dec']:
-        df[f'norm_{m}'] *= 1.2
-
-    # Run monthly simulations
+    # Monthly simulations using global scalars
     monthly_results = []
     for month in MONTHS:
-        norm = df[f'norm_{month}']
-        adj_cpc = df['base_weighted_cpc'] * (norm ** cpc_power)
-        adj_cvr = base_cvr * (norm ** cvr_power)
+        scalar = monthly_scalars[month]
+        adj_cpc = df['base_weighted_cpc'] * (scalar ** cpc_power)
+        adj_cvr = base_cvr * (scalar ** cvr_power)
 
         avg_cpc = adj_cpc.mean()
         avg_cvr = adj_cvr.mean()
@@ -103,7 +100,7 @@ if uploaded_file:
 
     result_df = pd.DataFrame(monthly_results).set_index('Month')
 
-    # Single-month result
+    # Single-month view
     if selected_month:
         st.subheader(f"📅 {selected_month} Simulation")
         row = result_df.loc[selected_month]
@@ -115,13 +112,9 @@ if uploaded_file:
         st.subheader("📊 Selected Months Comparison")
         st.dataframe(result_df.loc[selected_multi])
 
-    # Full year chart
+    # Full-year line chart
     st.subheader("📈 Year-Long Projection")
     st.line_chart(result_df[['Estimated Clicks', 'Estimated Conversions', 'Estimated Revenue', 'Estimated ROAS']])
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
-
-
-
-
