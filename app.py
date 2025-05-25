@@ -91,12 +91,13 @@ if uploaded_file:
         scalar = monthly_scalars[month]
         raw_volume = monthly_totals[monthly_map[month]]
 
-        # Adjusted spend per month
+        # ✅ Adjusted spend with floor
         adjusted_budget = base_budget * (1 + (scalar - 1) * spend_sensitivity)
+        adjusted_budget = max(adjusted_budget, 1.0)
 
-        # CPC scaling (flattened)
+        # ✅ CPC scaling with floor
         adj_cpc = df['base_weighted_cpc'] * (1 + (scalar - 1) * cpc_power)
-        adj_cpc = adj_cpc.clip(lower=0.01)  # ✅ prevent negative CPCs
+        adj_cpc = adj_cpc.clip(lower=0.01)
 
         # CVR scaling (exponential)
         adj_cvr = base_cvr * (scalar ** cvr_power)
@@ -152,3 +153,4 @@ if uploaded_file:
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
+
