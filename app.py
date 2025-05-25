@@ -20,19 +20,18 @@ if uploaded_file:
     # Normalize column names
     df.columns = [col.strip().replace('\ufeff', '').lower() for col in df.columns]
 
-    df.rename(columns={
-        'top of page bid (low range)': 'low_cpc',
-        'top of page bid (high range)': 'high_cpc',
-        'competition (indexed value)': 'competition_index'
-    }, inplace=True)
+    # Dynamically map monthly search columns
+    monthly_map = {}
+    for month in MONTHS:
+        for col in df.columns:
+            if f"searches: {month}" in col:
+                monthly_map[month] = col
+                break
 
-    # Ensure all required columns
-    search_cols = [f'searches: {m} 2025' for m in MONTH_LABELS]
-    required_cols = ['keyword', 'low_cpc', 'high_cpc', 'competition_index'] + search_cols
-
-    if not all(col in df.columns for col in required_cols):
-        st.error("Missing columns. Ensure export includes keyword, CPCs, competition, and 2025 monthly searches.")
-        st.write("Found columns:", list(df.columns))
+    required_core = ['keyword', 'top of page bid (low range)', 'top of page bid (high range)', 'competition (indexed value)']
+    if not all(col in df.columns for col in required_core) or len(monthly_map) < 12:
+        st.error("❌ Missing required columns. Confirm export includes keyword, CPCs, competition index, and monthly search volume.")
+        st.write("Detected columns:", list(df.columns))
         st.stop()
 
     # Inputs
@@ -47,30 +46,36 @@ if uploaded_file:
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
     selected_multi = st.sidebar.multiselect("Compare multiple months", MONTH_LABELS, default=["May", "Nov", "Dec"])
 
-    # Prepare data
-    df = df[['keyword', 'low_cpc', 'high_cpc', 'competition_index'] + search_cols].dropna()
+    # Rename columns
+    df.rename(columns={
+        'top of page bid (low range)': 'low_cpc',
+        'top of page bid (high range)': 'high_cpc',
+        'competition (indexed value)': 'competition_index'
+    }, inplace=True)
+
+    # Drop and clean
+    df = df[['keyword', 'low_cpc', 'high_cpc', 'competition_index'] + list(monthly_map.values())].dropna()
     df['low_cpc'] = pd.to_numeric(df['low_cpc'], errors='coerce')
     df['high_cpc'] = pd.to_numeric(df['high_cpc'], errors='coerce')
     df['competition_index'] = pd.to_numeric(df['competition_index'], errors='coerce')
-    for col in search_cols:
+    for col in monthly_map.values():
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df.dropna(inplace=True)
 
     df['competition_score'] = df['competition_index'] / 100
     df['base_weighted_cpc'] = df['low_cpc'] * (1 - df['competition_score']) + df['high_cpc'] * df['competition_score']
 
-    # Normalize volumes
-    monthly_cols = [f'searches: {m} 2025' for m in MONTH_LABELS]
-    df['peak_volume'] = df[monthly_cols].max(axis=1)
+    # Normalize monthly search volume per keyword
+    df['peak_volume'] = df[list(monthly_map.values())].max(axis=1)
     for month in MONTHS:
-        col = f'searches: {month.capitalize()} 2025'
+        col = monthly_map[month]
         df[f'norm_{month}'] = df[col] / df['peak_volume']
 
-    # Optional boost for Nov/Dec (holiday traffic)
-    for holiday_month in ['nov', 'dec']:
-        df[f'norm_{holiday_month}'] *= 1.2  # 20% bonus
+    # Boost November and December demand artificially
+    for m in ['nov', 'dec']:
+        df[f'norm_{m}'] *= 1.2
 
-    # Calculate monthly projections
+    # Run monthly simulations
     monthly_results = []
     for month in MONTHS:
         norm = df[f'norm_{month}']
@@ -98,7 +103,7 @@ if uploaded_file:
 
     result_df = pd.DataFrame(monthly_results).set_index('Month')
 
-    # Display single-month view
+    # Single-month result
     if selected_month:
         st.subheader(f"📅 {selected_month} Simulation")
         row = result_df.loc[selected_month]
@@ -110,7 +115,7 @@ if uploaded_file:
         st.subheader("📊 Selected Months Comparison")
         st.dataframe(result_df.loc[selected_multi])
 
-    # Line chart of year
+    # Full year chart
     st.subheader("📈 Year-Long Projection")
     st.line_chart(result_df[['Estimated Clicks', 'Estimated Conversions', 'Estimated Revenue', 'Estimated ROAS']])
 
