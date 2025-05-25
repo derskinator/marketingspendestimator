@@ -41,8 +41,9 @@ if uploaded_file:
     product_price = st.sidebar.number_input("Product price ($)", value=100.0, min_value=0.0)
     cpc_power = st.sidebar.slider("CPC Power (sensitivity)", 0.0, 3.0, 1.5)
     cvr_power = st.sidebar.slider("CVR Power (sensitivity)", 0.0, 3.0, 1.3)
-    holiday_boost = st.sidebar.slider("Holiday Sensitivity (Nov/Dec)", 1.0, 2.0, 1.2, step=0.05)
     spend_sensitivity = st.sidebar.slider("Spend Sensitivity (seasonal scaling)", 0.0, 2.0, 1.0, step=0.05)
+    holiday_boost = st.sidebar.slider("Holiday Sensitivity (Nov/Dec)", 1.0, 2.0, 1.2, step=0.05)
+    search_volume_sensitivity = st.sidebar.slider("Search Volume Sensitivity", 0.0, 2.0, 1.0, step=0.05)
 
     # Month selectors
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
@@ -73,15 +74,22 @@ if uploaded_file:
         monthly_totals[monthly_map[m]] *= holiday_boost  # dynamic holiday boost
 
     monthly_mean = monthly_totals.mean()
-    monthly_scalars = {
+    raw_scalars = {
         month: monthly_totals[monthly_map[month]] / monthly_mean
         for month in MONTHS
     }
 
-    # Monthly simulations using global scalars
+    # Apply volume sensitivity to create adjusted scalars
+    monthly_scalars = {
+        month: 1 + (raw_scalars[month] - 1) * search_volume_sensitivity
+        for month in MONTHS
+    }
+
+    # Monthly simulations using adjusted scalars
     monthly_results = []
     for month in MONTHS:
         scalar = monthly_scalars[month]
+        raw_volume = monthly_totals[monthly_map[month]]
 
         # Adjusted spend per month
         adjusted_budget = base_budget * (1 + (scalar - 1) * spend_sensitivity)
@@ -102,7 +110,7 @@ if uploaded_file:
 
         monthly_results.append({
             'Month': month.capitalize(),
-            'Search Volume': int(monthly_totals[monthly_map[month]]),
+            'Search Volume': int(raw_volume),
             'Monthly Spend ($)': round(adjusted_budget, 2),
             'Avg CPC': round(avg_cpc, 2),
             'Avg CVR (%)': round(avg_cvr * 100, 2),
@@ -143,4 +151,5 @@ if uploaded_file:
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
+
 
