@@ -102,6 +102,7 @@ if uploaded_file:
 
         monthly_results.append({
             'Month': month.capitalize(),
+            'Search Volume': int(monthly_totals[monthly_map[month]]),
             'Monthly Spend ($)': round(adjusted_budget, 2),
             'Avg CPC': round(avg_cpc, 2),
             'Avg CVR (%)': round(avg_cvr * 100, 2),
