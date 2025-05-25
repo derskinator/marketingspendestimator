@@ -105,6 +105,10 @@ if uploaded_file:
 
     result_df = pd.DataFrame(monthly_results).set_index('Month')
 
+    # Ensure correct calendar order for index
+    result_df.index = pd.CategoricalIndex(result_df.index, categories=MONTH_LABELS, ordered=True)
+    result_df.sort_index(inplace=True)
+
     # Single-month view
     if selected_month:
         st.subheader(f"📅 {selected_month} Simulation")
@@ -118,13 +122,15 @@ if uploaded_file:
         ordered_multi = [m for m in MONTH_LABELS if m in selected_multi]
         st.dataframe(result_df.loc[ordered_multi])
 
-    # Line chart for revenue only, sorted by calendar order
+    # Chronologically ordered revenue chart
     st.subheader("📈 Projected Sales (Selected Months Only)")
     if selected_multi:
         ordered_multi = [m for m in MONTH_LABELS if m in selected_multi]
-        st.line_chart(result_df.loc[ordered_multi][['Estimated Revenue']])
+        chart_df = result_df.loc[ordered_multi].copy()
+        chart_df.index = pd.CategoricalIndex(chart_df.index, categories=MONTH_LABELS, ordered=True)
+        chart_df.sort_index(inplace=True)
+        st.line_chart(chart_df[['Estimated Revenue']])
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
-
 
