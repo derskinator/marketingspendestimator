@@ -36,12 +36,13 @@ if uploaded_file:
 
     # Inputs
     st.sidebar.header("🔧 Inputs")
-    budget = st.sidebar.number_input("Total budget ($)", value=500.0, min_value=0.0)
+    base_budget = st.sidebar.number_input("Total base monthly budget ($)", value=500.0, min_value=0.0)
     base_cvr = st.sidebar.number_input("Base conversion rate (%)", value=2.0, min_value=0.1, max_value=100.0) / 100
     product_price = st.sidebar.number_input("Product price ($)", value=100.0, min_value=0.0)
-    cpc_power = st.sidebar.slider("CPC Power (sensitivity)", 0.5, 3.0, 1.5)
-    cvr_power = st.sidebar.slider("CVR Power (sensitivity)", 0.5, 3.0, 1.3)
+    cpc_power = st.sidebar.slider("CPC Power (sensitivity)", 0.0, 3.0, 1.5)
+    cvr_power = st.sidebar.slider("CVR Power (sensitivity)", 0.0, 3.0, 1.3)
     holiday_boost = st.sidebar.slider("Holiday Sensitivity (Nov/Dec)", 1.0, 2.0, 1.2, step=0.05)
+    spend_sensitivity = st.sidebar.slider("Spend Sensitivity (seasonal scaling)", 0.0, 2.0, 1.0, step=0.05)
 
     # Month selectors
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
@@ -81,19 +82,27 @@ if uploaded_file:
     monthly_results = []
     for month in MONTHS:
         scalar = monthly_scalars[month]
-        adj_cpc = df['base_weighted_cpc'] * (scalar ** cpc_power)
+
+        # Adjusted spend per month
+        adjusted_budget = base_budget * (1 + (scalar - 1) * spend_sensitivity)
+
+        # CPC scaling (flattened)
+        adj_cpc = df['base_weighted_cpc'] * (1 + (scalar - 1) * cpc_power)
+
+        # CVR scaling (exponential)
         adj_cvr = base_cvr * (scalar ** cvr_power)
 
         avg_cpc = adj_cpc.mean()
         avg_cvr = adj_cvr.mean()
-        clicks = budget / avg_cpc
+        clicks = adjusted_budget / avg_cpc
         conversions = clicks * avg_cvr
         revenue = conversions * product_price
-        cpa = budget / conversions if conversions > 0 else None
-        roas = revenue / budget if budget > 0 else None
+        cpa = adjusted_budget / conversions if conversions > 0 else None
+        roas = revenue / adjusted_budget if adjusted_budget > 0 else None
 
         monthly_results.append({
             'Month': month.capitalize(),
+            'Monthly Spend ($)': round(adjusted_budget, 2),
             'Avg CPC': round(avg_cpc, 2),
             'Avg CVR (%)': round(avg_cvr * 100, 2),
             'Estimated Clicks': round(clicks),
@@ -105,7 +114,7 @@ if uploaded_file:
 
     result_df = pd.DataFrame(monthly_results).set_index('Month')
 
-    # Ensure correct calendar order for index
+    # Ensure correct calendar order
     result_df.index = pd.CategoricalIndex(result_df.index, categories=MONTH_LABELS, ordered=True)
     result_df.sort_index(inplace=True)
 
