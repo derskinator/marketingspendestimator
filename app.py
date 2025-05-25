@@ -41,6 +41,7 @@ if uploaded_file:
     product_price = st.sidebar.number_input("Product price ($)", value=100.0, min_value=0.0)
     cpc_power = st.sidebar.slider("CPC Power (sensitivity)", 0.5, 3.0, 1.5)
     cvr_power = st.sidebar.slider("CVR Power (sensitivity)", 0.5, 3.0, 1.3)
+    holiday_boost = st.sidebar.slider("Holiday Sensitivity (Nov/Dec)", 1.0, 2.0, 1.2, step=0.05)
 
     # Month selectors
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
@@ -68,7 +69,7 @@ if uploaded_file:
     # GLOBAL normalized volume across all keywords (based on mean)
     monthly_totals = df[all_month_cols].sum()
     for m in ['nov', 'dec']:
-        monthly_totals[monthly_map[m]] *= 1.2  # holiday boost
+        monthly_totals[monthly_map[m]] *= holiday_boost  # dynamic holiday boost
 
     monthly_mean = monthly_totals.mean()
     monthly_scalars = {
@@ -117,10 +118,13 @@ if uploaded_file:
         ordered_multi = [m for m in MONTH_LABELS if m in selected_multi]
         st.dataframe(result_df.loc[ordered_multi])
 
-    # Full-year revenue chart
-    st.subheader("📈 Year-Long Projected Sales")
-    st.line_chart(result_df[['Estimated Revenue']])
+    # Line chart for revenue only, sorted by calendar order
+    st.subheader("📈 Projected Sales (Selected Months Only)")
+    if selected_multi:
+        ordered_multi = [m for m in MONTH_LABELS if m in selected_multi]
+        st.line_chart(result_df.loc[ordered_multi][['Estimated Revenue']])
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
+
 
