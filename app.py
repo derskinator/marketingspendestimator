@@ -65,12 +65,16 @@ if uploaded_file:
     df['competition_score'] = df['competition_index'] / 100
     df['base_weighted_cpc'] = df['low_cpc'] * (1 - df['competition_score']) + df['high_cpc'] * df['competition_score']
 
-    # GLOBAL normalized volume across all keywords
+    # GLOBAL normalized volume across all keywords (based on mean)
     monthly_totals = df[all_month_cols].sum()
     for m in ['nov', 'dec']:
-        monthly_totals[monthly_map[m]] *= 1.2  # boost holidays
-    global_peak = monthly_totals.max()
-    monthly_scalars = {month: monthly_totals[monthly_map[month]] / global_peak for month in MONTHS}
+        monthly_totals[monthly_map[m]] *= 1.2  # holiday boost
+
+    monthly_mean = monthly_totals.mean()
+    monthly_scalars = {
+        month: monthly_totals[monthly_map[month]] / monthly_mean
+        for month in MONTHS
+    }
 
     # Monthly simulations using global scalars
     monthly_results = []
@@ -119,3 +123,4 @@ if uploaded_file:
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
+
