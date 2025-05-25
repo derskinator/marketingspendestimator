@@ -44,7 +44,7 @@ if uploaded_file:
 
     # Month selectors
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
-    selected_multi = st.sidebar.multiselect("Compare multiple months", MONTH_LABELS, default=["May", "Nov", "Dec"])
+    selected_multi = st.sidebar.multiselect("Compare multiple months", MONTH_LABELS, default=MONTH_LABELS)
 
     # Rename and clean
     df.rename(columns={
@@ -67,8 +67,8 @@ if uploaded_file:
 
     # GLOBAL normalized volume across all keywords
     monthly_totals = df[all_month_cols].sum()
-    monthly_totals['searches: nov'] *= 1.2  # boost holidays
-    monthly_totals['searches: dec'] *= 1.2
+    for m in ['nov', 'dec']:
+        monthly_totals[monthly_map[m]] *= 1.2  # boost holidays
     global_peak = monthly_totals.max()
     monthly_scalars = {month: monthly_totals[monthly_map[month]] / global_peak for month in MONTHS}
 
@@ -107,14 +107,15 @@ if uploaded_file:
         for label, value in row.items():
             st.metric(label, f"{value:,}" if isinstance(value, (int, float)) else value)
 
-    # Multi-month table
+    # Multi-month table in calendar order
     if selected_multi:
         st.subheader("📊 Selected Months Comparison")
-        st.dataframe(result_df.loc[selected_multi])
+        ordered_multi = [m for m in MONTH_LABELS if m in selected_multi]
+        st.dataframe(result_df.loc[ordered_multi])
 
-    # Full-year line chart
-    st.subheader("📈 Year-Long Projection")
-    st.line_chart(result_df[['Estimated Clicks', 'Estimated Conversions', 'Estimated Revenue', 'Estimated ROAS']])
+    # Full-year revenue chart
+    st.subheader("📈 Year-Long Projected Sales")
+    st.line_chart(result_df[['Estimated Revenue']])
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
