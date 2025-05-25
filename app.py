@@ -96,13 +96,14 @@ if uploaded_file:
 
         # CPC scaling (flattened)
         adj_cpc = df['base_weighted_cpc'] * (1 + (scalar - 1) * cpc_power)
+        adj_cpc = adj_cpc.clip(lower=0.01)  # ✅ prevent negative CPCs
 
         # CVR scaling (exponential)
         adj_cvr = base_cvr * (scalar ** cvr_power)
 
         avg_cpc = adj_cpc.mean()
         avg_cvr = adj_cvr.mean()
-        clicks = adjusted_budget / avg_cpc
+        clicks = adjusted_budget / avg_cpc if avg_cpc > 0 else 0
         conversions = clicks * avg_cvr
         revenue = conversions * product_price
         cpa = adjusted_budget / conversions if conversions > 0 else None
@@ -118,7 +119,7 @@ if uploaded_file:
             'Estimated Conversions': round(conversions, 2),
             'Estimated CPA': round(cpa, 2) if cpa else None,
             'Estimated Revenue': round(revenue, 2),
-            'Estimated ROAS': round(roas, 2)
+            'Estimated ROAS': round(roas, 2) if roas else None
         })
 
     result_df = pd.DataFrame(monthly_results).set_index('Month')
@@ -151,5 +152,3 @@ if uploaded_file:
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
-
-
