@@ -39,8 +39,8 @@ if uploaded_file:
     budget = st.sidebar.number_input("Total budget ($)", value=500.0, min_value=0.0)
     base_cvr = st.sidebar.number_input("Base conversion rate (%)", value=2.0, min_value=0.1, max_value=100.0) / 100
     product_price = st.sidebar.number_input("Product price ($)", value=100.0, min_value=0.0)
-    cpc_scale = st.sidebar.slider("CPC sensitivity", 0.0, 1.0, 0.5)
-    cvr_scale = st.sidebar.slider("CVR sensitivity", 0.0, 1.0, 0.3)
+    cpc_power = st.sidebar.slider("CPC Power (sensitivity)", 0.5, 3.0, 1.5)
+    cvr_power = st.sidebar.slider("CVR Power (sensitivity)", 0.5, 3.0, 1.3)
 
     # Month selectors
     selected_month = st.sidebar.selectbox("Simulate a single month", MONTH_LABELS)
@@ -79,8 +79,8 @@ if uploaded_file:
     monthly_results = []
     for month in MONTHS:
         norm = df[f'norm_{month}']
-        adj_cpc = df['base_weighted_cpc'] * (1 + (norm - 1) * cpc_scale)
-        adj_cvr = base_cvr * (1 + (norm - 1) * cvr_scale)
+        adj_cpc = df['base_weighted_cpc'] * (norm ** cpc_power)
+        adj_cvr = base_cvr * (norm ** cvr_power)
 
         avg_cpc = adj_cpc.mean()
         avg_cvr = adj_cvr.mean()
@@ -121,6 +121,7 @@ if uploaded_file:
 
 else:
     st.info("📄 Upload your Keyword Planner TSV export to begin.")
+
 
 
 
