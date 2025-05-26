@@ -91,13 +91,15 @@ if uploaded_file:
         scalar = monthly_scalars[month]
         raw_volume = monthly_totals[monthly_map[month]]
 
-        # ✅ Adjusted spend with floor
+        # Adjusted spend with floor
         adjusted_budget = base_budget * (1 + (scalar - 1) * spend_sensitivity)
         adjusted_budget = max(adjusted_budget, 1.0)
 
-        # ✅ CPC scaling with floor
-        adj_cpc = df['base_weighted_cpc'] * (1 + (scalar - 1) * cpc_power)
-        adj_cpc = adj_cpc.clip(lower=0.01)
+        # CPC scaling with 25% floor per keyword
+        raw_cpc = df['base_weighted_cpc']
+        min_cpc = raw_cpc * 0.25
+        adj_cpc = raw_cpc * (1 + (scalar - 1) * cpc_power)
+        adj_cpc = pd.concat([adj_cpc, min_cpc], axis=1).max(axis=1)
 
         # CVR scaling (exponential)
         adj_cvr = base_cvr * (scalar ** cvr_power)
@@ -124,8 +126,6 @@ if uploaded_file:
         })
 
     result_df = pd.DataFrame(monthly_results).set_index('Month')
-
-    # Ensure correct calendar order
     result_df.index = pd.CategoricalIndex(result_df.index, categories=MONTH_LABELS, ordered=True)
     result_df.sort_index(inplace=True)
 
